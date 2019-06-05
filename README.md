@@ -1,2 +1,2 @@
 # nsi-js-course
-Node express scaffolder
+Simple express node js application
