@@ -33,15 +33,45 @@ function buildPath(id, noExtension) {
   }
   return PATH_ARRAY.join(path.sep);
 }
+
 async function _getNotes(req, res) {
   const fs = require('fs');
-  const FILES_NAME = await _p(fs.readdir)(buildPath(null));
-  const FILES_DATA = await Promise.all(FILES_NAME.map(fileName => {
-    return _p(fs.readFile)(buildPath(fileName, true), 'utf8');
-  }));
 
-  res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(FILES_DATA.map((data, idx) => ({id: FILES_NAME[idx], note: data}))));
+  const FILES_NAME = await _p(fs.readdir)(buildPath(null));
+  if (req.params.id) {
+    if (!FILES_NAME.includes(req.params.id)) {
+      return res.status(404).send('No note with id specified');
+    }
+    const FILE = await _p(fs.readFile)(buildPath(req.params.id, true), 'utf8');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify({id: req.params.id, note: FILE}));
+  }
+  else {
+    const FILES_DATA = await Promise.all(FILES_NAME.map(fileName => {
+      return _p(fs.readFile)(buildPath(fileName, true), 'utf8');
+    }));
+
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(FILES_DATA.map((data, idx) => ({id: FILES_NAME[idx], note: data}))));
+  }
+}
+
+async function _delNotes(req, res) {
+  const fs = require('fs');
+  const FILES_NAME = await _p(fs.readdir)(buildPath(null));
+  if (req.params.id) {
+    if (!FILES_NAME.includes(req.params.id)) {
+      return res.status(404).send('No note with id specified');
+    }
+    await _p(fs.unlink)(buildPath(req.params.id, true));
+  }
+  else {
+    await Promise.all(FILES_NAME.map(fileName => {
+      return _p(fs.unlink)(buildPath(fileName, true));
+    }));
+  }
+
+  res.status(204).end();
 }
 
 APP.route('/notes')
@@ -50,7 +80,7 @@ APP.route('/notes')
        res.end(JSON.stringify(err));
      });
    })
-   .post(function (req, res) {
+   .post((req, res) => {
      const fs = require('fs');
      const ID = _generateUuid();
      if (!req.body.note) {
@@ -65,20 +95,26 @@ APP.route('/notes')
        res.send(JSON.stringify({id: ID, note: req.body.note}));
      });
    })
-   .delete(function (req, res) {
-     res.send('Delete all the book')
+   .delete((req, res) => {
+     _delNotes(req, res).catch((err) => {
+       res.end(JSON.stringify(err));
+     });
    });
 
 APP.route('/notes/:id')
    .get(function (req, res) {
-     res.send('Get a single book')
+     _getNotes(req, res).catch((err) => {
+       res.end(JSON.stringify(err));
+     });
    })
-   .post(function (req, res) {
+   .put(function (req, res) {
+     //todo
      res.send('Add a book')
    })
    .delete(function (req, res) {
-     res.send('Update the book')
-   })
+     _delNotes(req, res).catch((err) => {
+       res.end(JSON.stringify(err));
+     });
 
 
 // start the server only if `$ node server.js`
